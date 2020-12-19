@@ -303,10 +303,24 @@
               />
 
               <input
-                v-if="presetData[value].input_type == 'color2arr' && 
+                v-if="
+                  presetData[value].input_type == 'input' &&
+                    presetData[value].subtype == 'text'
+                "
+                type="text"
+                :maxlength='presetData[value].max'
+                style="width:100%;"
+                :id="'text'+numIndex"
+                :value="GetText4Arr_b(numIndex, value, valueIndex, num)"
+                v-on:change="SetText2Arr_b(numIndex, value, valueIndex, num)"
+              />
+
+              <input
+                v-if="presetData[value].input_type == 'color2arr' && (
+                  presetData[value].lock === false ||
                   myData[selectedCmdIndex].data[numIndex].mode[
                     num.selectedModeIndex
-                  ].values[0] === 0"
+                  ].values[0] === 0)"
                 type="color"
                 :id="'myColor'+numIndex"
                 style="width:100%;"
@@ -497,7 +511,7 @@ export default {
       this.session = tmpData.session;
       if (this.device.mode == "app") {
         try {
-          if (this.device.product_id == 3)
+          if (this.device.product_id == 3 && this.device.vendor_id == 0x8089)
           {
             this.root = JSON.parse(
               this.$utils.httpGet(
@@ -517,7 +531,7 @@ export default {
           }
         } catch {
           console.log("加载main format");
-          if (this.device.model_code < 0x8000 && this.device.product_id == 3)
+          if (this.device.model_code < 0x8000 && this.device.vendor_id == 0x8089 && this.device.product_id == 3)
           {
             this.root = JSON.parse(
               this.$utils.httpGet("http://127.0.0.1:7296/emmm/main_vid_3.json")
@@ -932,6 +946,63 @@ export default {
               this.active.mode
             ].values[this.active.value+i*2 +1] = text_code[i]%256;
             console.log(text_code[i]);
+          }
+          else
+          {
+            this.myData[this.selectedCmdIndex].data[this.active.data].mode[
+              this.active.mode
+            ].values[this.active.value+i*2] = 0;
+            this.myData[this.selectedCmdIndex].data[this.active.data].mode[
+              this.active.mode
+            ].values[this.active.value+i*2 +1] = 0;
+          }
+      }
+
+      this.write();
+      //显示已更改
+      this.$bvToast.show("my-toast");
+    },
+    //按键编号  json name  Number   data
+    GetText4Arr_b: function(numIndex, value, valueIndex, num) {
+      var text ="";
+      var text_code = [];
+      for (var i=0;(i*2)<num.mode[num.selectedModeIndex].values.length;i++){
+        text_code[i] = num.mode[num.selectedModeIndex].values[valueIndex + i*2 +1] *256 + (num.mode[num.selectedModeIndex].values[valueIndex + i*2]);
+        if (text_code[i] != 0)
+        {
+          text = text + String.fromCharCode(text_code[i]);
+        }
+        else
+        {
+          break;
+        }
+      }
+      console.log("GetText4Arr",text);
+      return text;
+    },
+    SetText2Arr_b: function(numIndex, value, valueIndex, num){
+      this.active.data = numIndex;
+      this.active.mode = num.selectedModeIndex;
+      this.active.value = valueIndex;
+      this.active.json = this.presetData[value];
+      this.myData[this.selectedCmdIndex].selectData = numIndex;
+      this.myData[this.selectedCmdIndex].data[numIndex].selectedValue = valueIndex;
+      this.myData[this.selectedCmdIndex].selectData = numIndex;
+      var text_code = [];
+      this.active.text = document.getElementById("text" + numIndex).value;
+      console.log(this.active.text,this.active.text.length,num.mode[num.selectedModeIndex].values.length);
+      for (var i=0;(i*2)<num.mode[num.selectedModeIndex].values.length;i++)
+      {
+          if (i<this.active.text.length)
+          {
+            console.log(i);
+            text_code[i] = this.active.text.charCodeAt(i);
+            this.myData[this.selectedCmdIndex].data[this.active.data].mode[
+              this.active.mode
+            ].values[this.active.value+i*2 + 1] = parseInt(text_code[i]/256);
+            this.myData[this.selectedCmdIndex].data[this.active.data].mode[
+              this.active.mode
+            ].values[this.active.value+i*2] = text_code[i]%256;
           }
           else
           {
