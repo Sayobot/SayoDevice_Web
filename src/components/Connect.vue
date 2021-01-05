@@ -85,6 +85,7 @@
         >
       </div>
     </div>
+    <!--
     <div v-if="connectedDeviceIndex === null && sayoDevice === 0 && this.ad !== null" class="col-9">
       <br />
       <h1 style="text-align: center;">外设推荐</h1>
@@ -105,6 +106,7 @@
       <br>
         <h4 style="text-align: center;">如果想禁用广告，请删除文件 html\ad </h4>
     </div>
+    -->
     <div id="operation" class="col-9" v-if="connectedDeviceIndex != null">
       <br />
       <br />
@@ -119,7 +121,8 @@
           {{ item.title }}
         </button>
       </div>
-      <div v-if="readOK !== 0">
+      <!-- 通用的格式化  -->
+      <div v-if="readOK !== 0 && root.data[selectedCmdIndex].format === null">
         <b>{{ rttmsg }}</b>
         <b-toast
           id="my-toast"
@@ -316,6 +319,22 @@
               />
 
               <input
+                v-if="
+                  presetData[value].input_type == 'input' &&
+                    presetData[value].subtype == 'text_gbk'
+                "
+                type="text"
+                :maxlength='presetData[value].max'
+                style="width:100%;"
+                v-model.trim="
+                  myData[selectedCmdIndex].data[numIndex].mode[
+                    num.selectedModeIndex
+                  ].values[valueIndex]
+                "
+                v-on:change="inputCheck(numIndex, value, valueIndex, num)"
+              />
+
+              <input
                 v-if="presetData[value].input_type == 'color2arr' && (
                   presetData[value].lock === false ||
                   myData[selectedCmdIndex].data[numIndex].mode[
@@ -391,6 +410,19 @@
           </div>
         </div>
       </div>
+      <!-- key_maps -->
+      <div v-if="readOK !== 0 && root.data[selectedCmdIndex].format === 'key_map'">
+        <div
+          v-for="(bottom, bottomIndex) in key_map"
+          v-bind:key="bottomIndex"
+        >
+        <button 
+          :style="'width:' + bottom.key_shape_x + 'px;height:' + bottom.key_shape_y + 'px;'"
+        >按钮</button>
+        </div>
+      </div>
+
+
     </div>
   </div>
 </template>
@@ -418,12 +450,14 @@ export default {
       selectedCmdIndex: null, //选中的选项
       presetData: [], //预加载data
       myData: [], //当前键盘配置文件缓存
+      key_map:[],
       readOK: 0, //读取键盘配置成功的标志
       unsaved: 0, //当前修改但未点永久保存的
       ad: null,
       active: {
         json: {}, //当前操作选项的 input format文件
         keys: [], //当前操作的项目的 active key，用来显示选中状态
+        key_lay:0,
         opt: 0, //当前操作的选项卡，如 按键 或 灯光 的编号
         data: 0, //当前操作的编号
         mode: 0, //当前操作的模式编号
@@ -1040,7 +1074,7 @@ export default {
               tmpValueNameList +=
                 '<div class="row row-cols-2"><div class="col text-nowrap"><span class="badge badge-pill badge-success">' +
                 val.name +
-                '</span></div><div class="col text-nowrap">已设定</div></div>';
+                '</span></div><div class="col text-nowrap">' + this.lang.set_ + '</div></div>';
             }
           });
           return '<div class="container">' + tmpValueNameList + "</div>";
@@ -1069,7 +1103,23 @@ export default {
       // num.modeIndex模式下valueIndex配置文件的键value的name
       if (this.presetData[value].input_type == "choice") {
         if (this.presetData[value].multiple_choice == true) {
-          return this.lang.multiSelectItems_;
+          this.presetData[value].data.map((val) => {
+            if (val.code & num.mode[num.selectedModeIndex].values[valueIndex]) {
+              if (tmpValueName == '')
+              {
+                  tmpValueName = val.name;
+              }
+              else
+              {
+                  tmpValueName += '+' + val.name;
+              }
+            }
+          });
+          if (tmpValueName == '')
+          {
+            tmpValueName = this.lang.not_set_;
+          }
+          return tmpValueName;
         } else {
           try {
             this.presetData[value].data.map((val) => {
@@ -1130,6 +1180,7 @@ export default {
       } else {
         this.rttmsg += "，一般一般，直插电脑USB3.0接口试试？";
       }
+      //if (this.root.data[cmdIndex].format === null)
       //遍历读取到的data数组
       tmpData.data.map((data, dataIndex) => {
         this.myData[cmdIndex].data[dataIndex] = {};
@@ -1142,43 +1193,71 @@ export default {
             this.myData[cmdIndex].data[dataIndex].selectedValue = 0;
             this.myData[cmdIndex].data[dataIndex].mode[modeIndex] = {};
             this.myData[cmdIndex].data[dataIndex].mode[modeIndex].values = [];
-            if ("values" in mode) {
-              mode.values.map((val, indexVal) => {
-                if (this.presetData[val].input_type === "choice") {
-                  this.presetData[val].data.map((code) => {
-                    if (this.presetData[val].multiple_choice === false) {
-                      if (code.code === data.values[indexVal]) {
-                        this.myData[cmdIndex].data[dataIndex].mode[
-                          modeIndex
-                        ].values[indexVal] = data.values[indexVal];
-                        return false;
+            
+            if (this.root.data[cmdIndex].format === null)
+            {
+              if ("values" in mode) {
+                mode.values.map((val, indexVal) => {
+                  if (this.presetData[val].input_type === "choice") {
+                    this.presetData[val].data.map((code) => {
+                      if (this.presetData[val].multiple_choice === false) {
+                        if (code.code === data.values[indexVal]) {
+                          this.myData[cmdIndex].data[dataIndex].mode[
+                            modeIndex
+                          ].values[indexVal] = data.values[indexVal];
+                          return false;
+                        }
+                      } else if (this.presetData[val].multiple_choice === true) {
+                        if (code.code & data.values[indexVal]) {
+                          this.myData[cmdIndex].data[dataIndex].mode[
+                            modeIndex
+                          ].values[indexVal] |= data.values[indexVal];
+                          return false;
+                        }
                       }
-                    } else if (this.presetData[val].multiple_choice === true) {
-                      if (code.code & data.values[indexVal]) {
-                        this.myData[cmdIndex].data[dataIndex].mode[
-                          modeIndex
-                        ].values[indexVal] |= data.values[indexVal];
-                        return false;
-                      }
+                    });
+                    if (
+                      !(
+                        indexVal in
+                        this.myData[cmdIndex].data[dataIndex].mode[modeIndex]
+                          .values
+                      )
+                    ) {
+                      this.myData[cmdIndex].data[dataIndex].mode[
+                        modeIndex
+                      ].values[indexVal] = this.presetData[val].defVal;
                     }
-                  });
-                  if (
-                    !(
-                      indexVal in
-                      this.myData[cmdIndex].data[dataIndex].mode[modeIndex]
-                        .values
-                    )
-                  ) {
-                    this.myData[cmdIndex].data[dataIndex].mode[
-                      modeIndex
-                    ].values[indexVal] = this.presetData[val].defVal;
+                  } else {
+                    this.myData[cmdIndex].data[dataIndex].mode[modeIndex].values[
+                      indexVal
+                    ] = data.values[indexVal];
                   }
-                } else {
-                  this.myData[cmdIndex].data[dataIndex].mode[modeIndex].values[
-                    indexVal
-                  ] = data.values[indexVal];
+                });
+              }
+            }
+            else
+            {
+              this.myData[cmdIndex].data[dataIndex].mode[modeIndex].values = data.values;
+              if (this.root.data[cmdIndex].format === "key_map")
+              {
+                this.key_map[dataIndex]={};
+                this.key_map[dataIndex].key_site_x = data.values[1]+data.values[2]*256;
+                this.key_map[dataIndex].key_site_y = data.values[3]+data.values[4]*256;
+                this.key_map[dataIndex].key_shape_x = data.values[7]+data.values[8]*256;
+                this.key_map[dataIndex].key_shape_y = data.values[9]+data.values[10]*256;
+                this.key_map[dataIndex].key_shape_r = data.values[11]+data.values[12]*256;
+                this.key_map[dataIndex].key_arr = [];
+                for (var fn = 0; fn < (data.values.length - 13)/6;fn++)
+                {
+                  this.key_map[dataIndex].key_arr[fn] = {};
+                  this.key_map[dataIndex].key_arr[fn].mode = data.values[13+fn*6];
+                  this.key_map[dataIndex].key_arr[fn].values = [];
+                  this.key_map[dataIndex].key_arr[fn].values[0] = data.values[15+fn*6];
+                  this.key_map[dataIndex].key_arr[fn].values[1] = data.values[16+fn*6];
+                  this.key_map[dataIndex].key_arr[fn].values[2] = data.values[17+fn*6];
+                  this.key_map[dataIndex].key_arr[fn].values[3] = data.values[18+fn*6];
                 }
-              });
+              }
             }
             return false;
           }
@@ -1197,6 +1276,8 @@ export default {
           });
         }
       });
+      console.log(this.myData);
+      console.log(this.key_map);
       this.activeKeyList = 0;
       this.myData[cmdIndex].selectData = 0;
       this.readOK = 1;
