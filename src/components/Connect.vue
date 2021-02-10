@@ -122,7 +122,7 @@
         </button>
       </div>
       <!-- 通用的格式化  -->
-      <div v-if="readOK !== 0 && root.data[selectedCmdIndex].format === null">
+      <div v-if="readOK !== 0 && root.data[selectedCmdIndex].format === null && root.data[selectedCmdIndex].ban_release_number !== device.release_number">
         <b>{{ rttmsg }}</b>
         <b-toast
           id="my-toast"
@@ -268,8 +268,8 @@
                 "
                 type="number"
                 style="width:100%;"
-                v-bind:min="presetData[value].min"
-                v-bind:max="presetData[value].max"
+                :min='presetData[value].min'
+                :max='presetData[value].max'
                 v-model.number="
                   myData[selectedCmdIndex].data[numIndex].mode[
                     num.selectedModeIndex
@@ -696,7 +696,6 @@ export default {
     },
 
     modeWrite: function(numIndex) {
-      console.log("modeWrite srart");
       var newModeIndex = this.myData[this.selectedCmdIndex].data[numIndex]
         .selectedModeIndex;
       var modeIndex = this.active.mode;
@@ -731,7 +730,9 @@ export default {
                 (indexNewName == 0 ||
                   newName !=
                     this.root.data[this.selectedCmdIndex].mode[newModeIndex]
-                      .values[indexNewName - 1])
+                      .values[indexNewName - 1]) && this.myData[
+                  this.selectedCmdIndex
+                ].data[numIndex].mode[modeIndex] !== undefined
               ) {
                 this.myData[this.selectedCmdIndex].data[numIndex].mode[
                   this.active.mode
@@ -749,7 +750,6 @@ export default {
       this.active.opt = 0;
       this.write();
       this.$forceUpdate();
-      console.log("modeWrite end");
       //this.savePresetData();
     },
     //编号  json name  Number   data
@@ -1024,12 +1024,10 @@ export default {
       this.myData[this.selectedCmdIndex].selectData = numIndex;
       var text_code = [];
       this.active.text = document.getElementById("text" + numIndex).value;
-      console.log(this.active.text,this.active.text.length,num.mode[num.selectedModeIndex].values.length);
       for (var i=0;(i*2)<num.mode[num.selectedModeIndex].values.length;i++)
       {
           if (i<this.active.text.length)
           {
-            console.log(i);
             text_code[i] = this.active.text.charCodeAt(i);
             this.myData[this.selectedCmdIndex].data[this.active.data].mode[
               this.active.mode
@@ -1276,8 +1274,6 @@ export default {
           });
         }
       });
-      console.log(this.myData);
-      console.log(this.key_map);
       this.activeKeyList = 0;
       this.myData[cmdIndex].selectData = 0;
       this.readOK = 1;
