@@ -3,7 +3,7 @@
     <!-- 搜索、连接、断开 及设备列表 -->
     <div class="col-3 d-flex flex-column" style="height: 400px;">
       <h2 v-if="message !== ''" style="position: fixed;bottom:0px;right:0px;z-index:3">
-        {{lang.RTmsg_}}：{{ lang[message] }} 
+        {{lang.RTmsg_}}：{{ lang[message] || message }} 
       </h2>
       <br />
       <br />
@@ -58,14 +58,6 @@
         class="list-group"
         style="position:fixed;bottom:5%;"
       >
-        <!--
-				<select v-if="connLang.data.length > 1" class="col " v-model="selectedLangIndex" v-on:change="chooseLanguage()">
-					<option v-for="(language, languageIndex) in connLang.data" v-bind:key="languageIndex" v-bind:value="languageIndex">
-						<img :src="language.flag" height="25" />
-						&nbsp;{{language.name}}
-					</option>
-				</select>
-				-->
         <li
           class="bgbtn list-group-item"
           v-for="(language, languageIndex) in connLang.data"
@@ -85,28 +77,26 @@
         >
       </div>
     </div>
-    <!--
-    <div v-if="connectedDeviceIndex === null && sayoDevice === 0 && this.ad !== null" class="col-9">
-      <br />
-      <h1 style="text-align: center;">外设推荐</h1>
-      <a class="col-1"></a>
-      <a class="col-1"></a>
-      <a class="col-1"></a>
-      <button
-        class="col-9 btn btn-outline-info"
-        v-on:click="uriOpen('https://item.taobao.com/item.htm?id=580776520532')"
-      >
-        <img
-          src="https://a.sayobot.cn/img/device/o2c/o2cv2.jpg"
-          class="img-thumbnail"
-        />
-        <a>点击购买O2C v2</a>
-      </button>
-      <br>
-      <br>
-        <h4 style="text-align: center;">如果想禁用广告，请删除文件 html\ad </h4>
+    <!-- 未连接设备时的引导与状态提示面板 -->
+    <div v-if="connectedDeviceIndex === null" class="col-9">
+      <div class="card mt-4 shadow-sm border-0 bg-light">
+        <div class="card-body p-5 text-center">
+          <h2 class="mb-3 text-primary">SayoDevice 设备配置</h2>
+          <p class="text-muted mb-4">Web 版设备管理器与自定义配置工具</p>
+          <div class="alert alert-secondary text-left d-inline-block p-4" style="max-width: 620px; line-height: 1.8;">
+            <h5 class="alert-heading font-weight-bold mb-3">使用提示：</h5>
+            <ul class="mb-2 pl-3">
+              <li><b>连接外设</b>：请使用 USB 数据线将 SayoDevice 设备接入电脑。</li>
+              <li><b>驱动服务</b>：本网页需配合本地设备后台（默认端口 <code>127.0.0.1:7296</code>）进行通信。</li>
+              <li><b>开始配置</b>：准备就绪后，点击左侧 <b>【{{ lang.searchDevices_ || '搜索设备' }}】</b> 按钮，在设备列表中选取并连接。</li>
+            </ul>
+          </div>
+          <div v-if="message !== ''" class="mt-4 alert alert-warning d-inline-block text-left" style="max-width: 620px;">
+            <b>当前提示：</b> {{ lang[message] || message }}
+          </div>
+        </div>
+      </div>
     </div>
-    -->
     <div id="operation" class="col-9" v-if="connectedDeviceIndex != null">
       <br />
       <br />
@@ -435,14 +425,14 @@ export default {
   data: function() {
     return {
       session: null,
-      devices: {}, //所有设备的信息，注意区分
+      devices: { devices: 0, data: [] }, //所有设备的信息，注意区分
       sayoDevice: 0,
       rttmsg: "",
       message: "",
       selectedDeviceIndex: null,
       connectedDeviceIndex: null,
       isSearchAllDevices: false,
-      connLang: {}, //多语言主文件
+      connLang: { data: [] }, //多语言主文件
       lang: {}, //当前选中的语言的data
       selectedLangIndex: 0,
       device: null, //当前连接的设备的信息，注意区分
@@ -468,9 +458,57 @@ export default {
     };
   },
   created: function() {
-    this.connLang = JSON.parse(
-      this.$utils.httpGet("http://127.0.0.1:7296/lang/lang.json").responseText
-    );
+    let langRaw = null;
+    try {
+      let res = this.$utils.httpGet("http://127.0.0.1:7296/lang/lang.json");
+      if (res && res.responseText) {
+        langRaw = res.responseText;
+      }
+    } catch (e) {
+      // 忽略 7296 未启动
+    }
+    if (!langRaw) {
+      try {
+        let res = this.$utils.httpGet("/lang/lang.json");
+        if (res && res.responseText) {
+          langRaw = res.responseText;
+        }
+      } catch (e) {
+        // 忽略
+      }
+    }
+    if (langRaw) {
+      try {
+        this.connLang = JSON.parse(langRaw);
+      } catch (e) {
+        console.error("加载语言包 JSON 失败", e);
+      }
+    }
+    if (!this.connLang || !this.connLang.data || !this.connLang.data.length) {
+      this.connLang = {
+        data: [
+          {
+            name: "简体中文 (中国)",
+            flag: "assets/img/flags/CN.png",
+            data: {
+              searchDevices_: "搜索设备",
+              disconnect_: "断开",
+              connect_: "连接",
+              unsaved_: "未保存的 ：",
+              searchAllDevices_: "搜索全部设备",
+              RTmsg_: "实时消息",
+              deviceNotFound_msg: "未找到设备或未连接本地服务(127.0.0.1:7296)",
+              corrected_: "已更改",
+              select_: "选取",
+              ok_: "确定",
+              cancel_: "取消",
+              mode_: "模式",
+              permanentSave_: "永久保存"
+            }
+          }
+        ]
+      };
+    }
     var tmpLangIndex = localStorage.getItem("langIndex");
     if (tmpLangIndex != null && this.connLang.data[tmpLangIndex] != null) {
       this.selectedLangIndex = tmpLangIndex;
@@ -479,12 +517,15 @@ export default {
       localStorage.setItem("langIndex", this.selectedLangIndex);
     }
     try{
-      this.ad = JSON.parse(this.$utils.httpGet("http://127.0.0.1:7296/ad").responseText);
+      let adRes = this.$utils.httpGet("http://127.0.0.1:7296/ad");
+      if (adRes && adRes.responseText) {
+        this.ad = JSON.parse(adRes.responseText);
+      }
     }
     catch{
       this.ad = null;
     }
-    this.lang = this.connLang.data[this.selectedLangIndex].data;
+    this.lang = this.connLang.data[this.selectedLangIndex] ? this.connLang.data[this.selectedLangIndex].data : {};
     this.searchDevices();
   },
   methods: {
@@ -498,33 +539,44 @@ export default {
         tmpVendor_id = 32905;
         tmpProduct_id = 0;
       }
-      let tmpData = JSON.parse(
-        this.$utils.httpPost(
+      try {
+        let res = this.$utils.httpPost(
           "http://127.0.0.1:7296/dev/API/DEVICES/",
           JSON.stringify({
             cmd: "search",
             vendor_id: tmpVendor_id,
             product_id: tmpProduct_id,
           })
-        ).responseText
-      );
-      if ("message" in tmpData) {
-        this.message = tmpData.message;
-      } else {
-        this.message = "";
-      }
-      this.sayoDevice = 0;
-      this.devices = tmpData;
-      if (tmpData.devices != 0) {
-        this.selectedDeviceIndex = 0;
-        tmpData.data.map((device) => {
-          if (device.vendor_id === 32905) {
-            this.sayoDevice = 1;
+        );
+        if (res && res.responseText) {
+          let tmpData = JSON.parse(res.responseText);
+          if (tmpData) {
+            if ("message" in tmpData) {
+              this.message = tmpData.message;
+            } else {
+              this.message = "";
+            }
+            this.sayoDevice = 0;
+            this.devices = tmpData;
+            if (tmpData.devices != 0 && tmpData.data) {
+              this.selectedDeviceIndex = 0;
+              tmpData.data.map((device) => {
+                if (device.vendor_id === 32905) {
+                  this.sayoDevice = 1;
+                }
+              });
+            } else {
+              this.selectedDeviceIndex = null;
+            }
+            return;
           }
-        });
-      } else {
-        this.selectedDeviceIndex = null;
+        }
+      } catch (err) {
+        console.warn("未能连接到本地设备服务(127.0.0.1:7296)", err);
       }
+      this.message = "deviceNotFound_msg";
+      this.devices = { devices: 0, data: [] };
+      this.selectedDeviceIndex = null;
     },
     selectDevice: function(deviceIndex) {
       this.selectedDeviceIndex = deviceIndex;
